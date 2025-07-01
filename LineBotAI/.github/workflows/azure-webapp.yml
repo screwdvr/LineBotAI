@@ -19,13 +19,13 @@ jobs:
           dotnet-version: '8.x'
 
       - name: Restore dependencies
-        run: dotnet restore LineBotAI/LineBotAI.csproj
+        run: dotnet restore LineBotAI/LineBotAI.sln
 
       - name: Build project
-        run: dotnet build LineBotAI/LineBotAI.csproj --configuration Release --no-restore
+        run: dotnet build LineBotAI/LineBotAI.sln --configuration Release --no-restore
 
       - name: Publish project
-        run: dotnet publish LineBotAI/LineBotAI.csproj --configuration Release --output ./publish --no-build
+        run: dotnet publish LineBotAI/LineBotAI.sln --configuration Release --output ./publish --no-build
 
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v2
