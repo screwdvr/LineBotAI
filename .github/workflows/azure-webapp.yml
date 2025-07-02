@@ -1,4 +1,4 @@
-name: Deploy ASP.NET Core app to Azure Web App
+name: Build and deploy ASP.NET Core app to Azure Web App
 
 on:
   push:
@@ -13,22 +13,19 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup .NET 8
+      - name: Setup .NET SDK
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '8.0'
+          dotnet-version: '8.0.x'
 
       - name: Restore dependencies
-        run: dotnet restore
-        working-directory: ./LineBotAI
+        run: dotnet restore LineBotAI.csproj
 
       - name: Build project
-        run: dotnet build --configuration Release --no-restore
-        working-directory: ./LineBotAI
+        run: dotnet build LineBotAI.csproj --configuration Release --no-restore
 
       - name: Publish project
-        run: dotnet publish --configuration Release --output ./publish --no-build
-        working-directory: ./LineBotAI
+        run: dotnet publish LineBotAI.csproj --configuration Release --output ./publish --no-build
 
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v2
@@ -36,4 +33,4 @@ jobs:
           app-name: linebotAI-Nora
           slot-name: production
           publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
-          package: ./LineBotAI/publish
+          package: ./publish
