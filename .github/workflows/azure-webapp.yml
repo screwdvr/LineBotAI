@@ -19,7 +19,7 @@ jobs:
           dotnet-version: '8.0.x'
 
       - name: Restore dependencies
-        run: dotnet restore LineBotAI.csproj
+        run: dotnet restore LineBotAI.csproj 
 
       - name: Build project
         run: dotnet build LineBotAI.csproj --configuration Release --no-restore
