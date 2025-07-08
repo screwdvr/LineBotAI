@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("LineBotAI")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+633a9fed818b08cabf9c2e4acdbbf2d366bad712")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+a7e246a946fc9928e39480ae165ae3c4066bc29b")]
 [assembly: System.Reflection.AssemblyProductAttribute("LineBotAI")]
 [assembly: System.Reflection.AssemblyTitleAttribute("LineBotAI")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
