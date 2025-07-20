@@ -1,10 +1,11 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using System.Collections.Concurrent;
-using System.Text.Json;
 using LineBotAI.Models;
-using LineBotAI.Services;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
+using System.Net.Http.Headers;
 
 namespace LineBotAI.Controllers
 {
@@ -13,74 +14,114 @@ namespace LineBotAI.Controllers
     public class WebhookController : ControllerBase
     {
         private readonly ILogger<WebhookController> _logger;
-        private readonly LineBotService _lineBotService;
-        private readonly LineBotOptions _lineBotOptions;
-
-        // 用來記錄已處理過的 webhook event id，防止重複處理
-        private static readonly ConcurrentDictionary<string, bool> _processedEvents = new();
+        private readonly LineBotOptions _lineBotSettings;
 
         public WebhookController(
             ILogger<WebhookController> logger,
-            LineBotService lineBotService,
-            IOptions<LineBotOptions> options)
+            IOptions<LineBotOptions> lineBotSettings)
         {
             _logger = logger;
-            _lineBotService = lineBotService;
-            _lineBotOptions = options.Value;
+            _lineBotSettings = lineBotSettings.Value;
         }
 
         [HttpPost]
-        public async Task<IActionResult> PostAsync()
+        public async Task<IActionResult> Post()
         {
-            try
+            _logger.LogInformation("📩 收到 LINE Webhook 訊息");
+
+            string body;
+            using (var reader = new StreamReader(Request.Body))
             {
-                // 取得 X-Line-Signature header
-                var signature = Request.Headers["X-Line-Signature"];
-                if (string.IsNullOrEmpty(signature))
-                {
-                    _logger.LogWarning("Missing X-Line-Signature header.");
-                    return BadRequest();
-                }
+                body = await reader.ReadToEndAsync();
+            }
 
-                // 讀取 Request Body
-                using var reader = new StreamReader(Request.Body);
-                var body = await reader.ReadToEndAsync();
+            // 驗證簽章
+            var xLineSignature = Request.Headers["X-Line-Signature"];
+            var hash = ComputeHmacSha256(body, _lineBotSettings.ChannelSecret);
+            if (xLineSignature != hash)
+            {
+                _logger.LogWarning("❌ 簽章驗證失敗");
+                return Unauthorized();
+            }
 
-                // 驗證簽章
-                if (!_lineBotService.VerifySignature(body, signature))
-                {
-                    _logger.LogWarning("Signature validation failed.");
-                    return Unauthorized();
-                }
+            // 解析 JSON 並處理事件
+            var jsonDoc = JsonDocument.Parse(body);
+            var events = jsonDoc.RootElement.GetProperty("events");
 
-                // 解析 JSON
-                var payload = JsonSerializer.Deserialize<LineWebhookPayload>(body);
-                if (payload?.events == null || !payload.events.Any())
-                {
-                    _logger.LogInformation("No events in payload.");
-                    return Ok();
-                }
+            foreach (var lineEvent in events.EnumerateArray())
+            {
+                var type = lineEvent.GetProperty("type").GetString();
+                var replyToken = lineEvent.GetProperty("replyToken").GetString();
 
-                foreach (var evt in payload.events)
+                if (type == "message" &&
+                    lineEvent.GetProperty("message").GetProperty("type").GetString() == "text")
                 {
-                    // 防呆：避免重複處理相同的 event
-                    if (!_processedEvents.TryAdd(evt.@eventId ?? Guid.NewGuid().ToString(), true))
+                    var userMessage = lineEvent.GetProperty("message").GetProperty("text").GetString();
+                    _logger.LogInformation("👤 使用者訊息：{Message}", userMessage);
+
+                    string replyMessage;
+
+                    if (userMessage.Contains("你好"))
                     {
-                        _logger.LogWarning($"Duplicate event skipped: {evt.@eventId}");
-                        continue;
+                        replyMessage = "你好！我是 Nora 🤖";
+                    }
+                    else if (userMessage.Contains("提醒我"))
+                    {
+                        replyMessage = "請問你要提醒什麼事情呢？";
+                    }
+                    else if (userMessage.Contains("天氣"))
+                    {
+                        replyMessage = "想查哪裡的天氣呢？";
+                    }
+                    else
+                    {
+                        replyMessage = $"你說的是：「{userMessage}」，但我還不太懂唷～";
                     }
 
-                    // 呼叫服務處理邏輯
-                    await _lineBotService.HandleWebhookEventAsync(evt);
+                    await ReplyText(replyToken, replyMessage);
                 }
+            }
 
-                return Ok();
-            }
-            catch (Exception ex)
+            return Ok();
+        }
+
+        private static string ComputeHmacSha256(string data, string key)
+        {
+            var encoding = new UTF8Encoding();
+            byte[] keyBytes = encoding.GetBytes(key);
+            byte[] dataBytes = encoding.GetBytes(data);
+
+            using (var hmac = new HMACSHA256(keyBytes))
             {
-                _logger.LogError(ex, "Webhook processing error.");
-                return StatusCode(500);
+                byte[] hashBytes = hmac.ComputeHash(dataBytes);
+                return Convert.ToBase64String(hashBytes);
             }
+        }
+
+        private async Task ReplyText(string replyToken, string message)
+        {
+            using var httpClient = new HttpClient();
+            httpClient.DefaultRequestHeaders.Authorization =
+                new AuthenticationHeaderValue("Bearer", _lineBotSettings.ChannelAccessToken);
+
+            var body = new
+            {
+                replyToken = replyToken,
+                messages = new[]
+                {
+                    new
+                    {
+                        type = "text",
+                        text = message
+                    }
+                }
+            };
+
+            var json = JsonSerializer.Serialize(body);
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+            var response = await httpClient.PostAsync("https://api.line.me/v2/bot/message/reply", content);
+            _logger.LogInformation("LINE 回覆結果：{StatusCode}", response.StatusCode);
         }
     }
 }
