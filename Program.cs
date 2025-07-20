@@ -1,3 +1,5 @@
+using LineBotAI.Models;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // 讀取 LineBot 設定
