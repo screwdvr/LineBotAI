@@ -1,8 +1,20 @@
+# Build results
 bin/
 obj/
+
+# User-specific files
 *.user
 *.suo
+
+# VS Code settings
 .vscode/
-*.db
-*.DS_Store
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Logs
 *.log
+
+# Publish output
+/publish/
